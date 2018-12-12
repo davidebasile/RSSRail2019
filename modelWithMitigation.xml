@@ -1,0 +1,1001 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<nta>
+	<declaration>const int freq = 5;    //every 5 seconds send location
+const int bound=600;
+
+const int Lsafemargin = 300;  
+
+//********** OCC ***********
+
+int OCCconnectedCounter=0;
+
+//********   Tram  ***********
+
+const int nTram=1;
+int l[nTram];   //tram length -- 10 by default
+
+clock Lv[nTram];    //Lv is updated continuously by OBU
+//int speed[nTram];
+
+typedef int[0,nTram-1] id_tram;
+int epsilon[nTram];
+
+//********   TCV   ***********
+
+const int nTCV=3;        //number of TCV
+typedef int[0,nTCV-1] id_tcv;
+
+const int none=0;      //flags
+const int terminal=1;
+const int occupancy=2;
+const int positioning=3;
+typedef int[0,3] flag;
+
+flag TCVflag[nTCV];
+int TCVa[nTCV];
+int TCVb[nTCV];
+
+//********** TV  *************
+
+const int nTV = 1;
+typedef int[0,nTV-1] id_tv;
+int TVa[nTV];
+int TVb[nTV];
+
+
+//************ IXL  **************
+
+const int nIXL = 2;        //number of IXL
+typedef int[0,nIXL-1] id_IXL;
+
+int connectedCounter[nIXL];  //counts the number of IXL that are connected
+
+//********** Communications ***********
+
+//synchronous buffers for value passing
+int x=-1;  
+int y=-1;
+double z=-1.0;
+
+//OBC - IXL communications
+
+broadcast chan connect[nIXL];  //OBC tries to connect to IXL  -- it can fails
+broadcast chan connected[nTram];  //IXL acknowledge connection of OBC  
+
+broadcast chan loc[nIXL];   // OBC send location to connected IXL -- it can fails
+broadcast chan ack[nTram];  //IXL acknowledge reception of position to OBC
+
+broadcast chan disconnect[nTram]; //IXL disconnect OBC
+
+int IXLconnected[nTram]; //each tram stores the IXL it is connected to
+
+//OBC - OCC communications
+
+broadcast chan connectOCC;  //OBC tries to connect to OCC  -- it can fails
+broadcast chan connectedOCC[nTram];  //OCC acknowledge connection of OBC  
+
+broadcast chan locOCC;   // OBC send location to connected OCC -- it can fails
+broadcast chan ackOCC[nTram];  //OCC acknowledge reception of position to OBC
+
+broadcast chan disconnectOCC; // OBC disconnect from OCC
+
+//OCC intra communication
+
+broadcast chan checkPosOCC;    //used to check if the position of a tram is receveid in timeout seconds
+broadcast chan failureOCC;
+broadcast chan restoreOCC;
+broadcast chan OCCcheckConnection;
+
+//OBC intra communications
+broadcast chan stop[nTram];
+broadcast chan go[nTram];
+
+
+//OBC Mitigation
+broadcast chan failureOBC[nTram];  //a failure has occurred, it is sent to OBC Mitigation
+broadcast chan restoreOBC[nTram];  //OBC has handled the failure and it can be restored
+
+
+//OBC - OBCTV
+broadcast chan read;
+
+//IXL intra comm.
+
+broadcast chan IXLCheckConnection;   //notify a new connection or disconnection 
+
+//IXL IXLTCV communications
+
+broadcast chan checkloc[nIXL]; //IXL check all TCV under its competence
+broadcast chan freed[nIXL];    //TCV has been freed
+broadcast chan occupied[nIXL]; //TCV has been occupied
+
+//int Loc[nTram]; //Loc is used for the invariants of TCV instead of Lv because Lv is a clock
+
+//IXLMitigation
+broadcast chan failureIXL[nIXL];  //a failure has occurred, it is sent to IXLMitigation
+broadcast chan restoreIXL[nIXL];  //IXL has handled the failure and it can be restored
+
+
+
+
+
+
+//********   Routes   ***********
+
+//const int busy=0;        //releasing condition
+//const int free=1;
+//typedef int[0,1] releasing_condition;
+</declaration>
+	<template>
+		<name>OBC_Epsilon</name>
+		<parameter>const id_tram id</parameter>
+		<declaration>//updates non-deterministically the error epsilon after an exponentially distributed amount of time </declaration>
+		<location id="id0" x="-918" y="-748">
+			<label kind="exponentialrate" x="-935" y="-773">2</label>
+			<label kind="comments" x="-1453" y="-977">with an exponentially distributed delay of rate 2, a new protection level is received. The error is non-deterministically selected, the probability of having a range [-15,15] is of 10^-7, otherwise the range is [-7,7].</label>
+		</location>
+		<branchpoint id="id1" x="-688" y="-748">
+		</branchpoint>
+		<init ref="id0"/>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="select" x="-857" y="-824">eps:int[0,250]</label>
+			<label kind="assignment" x="-857" y="-807">epsilon[id]:=eps</label>
+			<label kind="probability" x="-857" y="-790">99999999</label>
+			<nail x="-688" y="-807"/>
+			<nail x="-918" y="-807"/>
+		</transition>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id1"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="assignment" x="-901" y="-688">epsilon[id]:=260</label>
+			<label kind="probability" x="-900" y="-671">1</label>
+			<nail x="-688" y="-671"/>
+			<nail x="-918" y="-671"/>
+		</transition>
+	</template>
+	<template>
+		<name>OBC_SendPosIXL</name>
+		<parameter>const id_tram id</parameter>
+		<declaration>clock c1=0.0;</declaration>
+		<location id="id2" x="-306" y="-17">
+			<name x="-399" y="-59">NotConnected</name>
+		</location>
+		<location id="id3" x="-187" y="-17">
+			<name x="-212" y="-68">Connected</name>
+			<label kind="exponentialrate" x="-178" y="-42">3</label>
+		</location>
+		<init ref="id2"/>
+		<transition>
+			<source ref="id3"/>
+			<target ref="id2"/>
+			<label kind="synchronisation" x="-289" y="51">disconnect[id]?</label>
+			<nail x="-220" y="42"/>
+			<nail x="-280" y="42"/>
+		</transition>
+		<transition>
+			<source ref="id2"/>
+			<target ref="id3"/>
+			<label kind="synchronisation" x="-306" y="-76">connected[id]?</label>
+			<label kind="assignment" x="-297" y="-59">c1=0</label>
+		</transition>
+		<transition>
+			<source ref="id3"/>
+			<target ref="id3"/>
+			<label kind="guard" x="-102" y="-17">c1&gt;=freq</label>
+			<label kind="synchronisation" x="-102" y="0">loc[IXLconnected[id]]!</label>
+			<label kind="assignment" x="-102" y="25">c1=0,
+x=id,
+z=Lv[id]+0</label>
+			<nail x="-178" y="-17"/>
+			<nail x="-110" y="-17"/>
+			<nail x="-110" y="42"/>
+			<nail x="-161" y="42"/>
+		</transition>
+	</template>
+	<template>
+		<name>OBC_Drive</name>
+		<parameter>const id_tram id</parameter>
+		<declaration>//guard speed[id]&gt;=0 is just to avoid warnings, it is unuseful
+
+clock c=0.0;
+
+void initialise()
+{
+ //   speed[id]=5;  // m/s  sono  18 km/h
+    Lv[id]=1;
+    epsilon[id]=0;
+    l[id]=50;
+}</declaration>
+		<location id="id4" x="-705" y="-467">
+			<urgent/>
+		</location>
+		<location id="id5" x="-331" y="-467">
+			<name x="-341" y="-501">Stop</name>
+			<label kind="invariant" x="-365" y="-527">Lv[id]'==0</label>
+		</location>
+		<location id="id6" x="-586" y="-467">
+			<name x="-603" y="-501">Moving</name>
+			<label kind="invariant" x="-620" y="-527">Lv[id]'==5</label>
+			<label kind="exponentialrate" x="-603" y="-459">3</label>
+		</location>
+		<init ref="id4"/>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id6"/>
+			<label kind="assignment" x="-680" y="-493">initialise()</label>
+		</transition>
+		<transition>
+			<source ref="id5"/>
+			<target ref="id6"/>
+			<label kind="synchronisation" x="-510" y="-399">restoreOBC[id]?</label>
+			<nail x="-331" y="-374"/>
+			<nail x="-586" y="-374"/>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id5"/>
+			<label kind="synchronisation" x="-510" y="-493">stop[id]?</label>
+		</transition>
+	</template>
+	<template>
+		<name>OBC_Mitigation</name>
+		<parameter>const id_tram id</parameter>
+		<location id="id7" x="-246" y="34">
+			<name x="-289" y="0">DegradadedMode</name>
+			<label kind="exponentialrate" x="-246" y="51">3</label>
+		</location>
+		<location id="id8" x="-127" y="-102">
+			<name x="-153" y="-136">Stopping</name>
+			<urgent/>
+		</location>
+		<location id="id9" x="-340" y="-102">
+			<name x="-408" y="-145">NormalOperation</name>
+		</location>
+		<init ref="id9"/>
+		<transition>
+			<source ref="id7"/>
+			<target ref="id9"/>
+			<label kind="synchronisation" x="-450" y="-34">restoreOBC[id]!</label>
+			<nail x="-340" y="34"/>
+		</transition>
+		<transition>
+			<source ref="id8"/>
+			<target ref="id7"/>
+			<label kind="synchronisation" x="-119" y="-34">stop[id]!</label>
+			<nail x="-127" y="34"/>
+		</transition>
+		<transition>
+			<source ref="id9"/>
+			<target ref="id8"/>
+			<label kind="synchronisation" x="-272" y="-128">failureOBC[id]?</label>
+		</transition>
+	</template>
+	<template>
+		<name>OBC_IXLConnectionSupervision</name>
+		<parameter>const id_tram id</parameter>
+		<declaration>int IXL;
+int bTVid;
+
+
+clock c1=0.0;
+clock c2=0.0;
+
+int TmaxAck=freq*5;
+int TmaxConnect=freq*3;
+</declaration>
+		<location id="id10" x="-2091" y="-1683">
+			<urgent/>
+		</location>
+		<location id="id11" x="-2439" y="-2057">
+			<name x="-2482" y="-2091">CheckingTV</name>
+			<urgent/>
+		</location>
+		<location id="id12" x="-2090" y="-1878">
+			<name x="-2115" y="-1920">Connecting</name>
+			<label kind="invariant" x="-2150" y="-1938">c1&lt;=freq&amp;&amp;c2&lt;=TmaxConnect</label>
+		</location>
+		<location id="id13" x="-2660" y="-1887">
+			<name x="-2703" y="-1921">Disconnect</name>
+		</location>
+		<location id="id14" x="-1487" y="-1853">
+			<name x="-1538" y="-1895">ConnectionLost</name>
+		</location>
+		<location id="id15" x="-1742" y="-1853">
+			<name x="-1776" y="-1895">Connected</name>
+			<label kind="invariant" x="-1776" y="-1912">c1&lt;=TmaxAck</label>
+		</location>
+		<init ref="id13"/>
+		<transition>
+			<source ref="id14"/>
+			<target ref="id15"/>
+			<label kind="synchronisation" x="-1674" y="-1810">restoreOBC[id]?</label>
+			<label kind="assignment" x="-1674" y="-1785">c1:=0</label>
+			<nail x="-1487" y="-1785"/>
+			<nail x="-1742" y="-1785"/>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id13"/>
+			<label kind="synchronisation" x="-2448" y="-1666">disconnect[id]?</label>
+			<label kind="assignment" x="-2448" y="-1632">IXL=-1</label>
+			<nail x="-1844" y="-1649"/>
+			<nail x="-2660" y="-1640"/>
+		</transition>
+		<transition>
+			<source ref="id10"/>
+			<target ref="id15"/>
+			<label kind="synchronisation" x="-1997" y="-1717">restoreOBC[id]!</label>
+			<label kind="assignment" x="-2073" y="-1683">c1:=0</label>
+			<label kind="comments" x="-2006" y="-1742">connected to IXL</label>
+			<nail x="-1861" y="-1683"/>
+			<nail x="-1785" y="-1853"/>
+		</transition>
+		<transition>
+			<source ref="id12"/>
+			<target ref="id12"/>
+			<label kind="guard" x="-2354" y="-1878">c2&gt;=TmaxConnect</label>
+			<label kind="synchronisation" x="-2312" y="-1861">failureOBC[id]!</label>
+			<label kind="assignment" x="-2295" y="-1844">c1=0,c2=0</label>
+			<label kind="comments" x="-2397" y="-1810">stop tram if fail to connect</label>
+			<nail x="-2158" y="-1802"/>
+			<nail x="-2218" y="-1802"/>
+			<nail x="-2218" y="-1879"/>
+		</transition>
+		<transition>
+			<source ref="id12"/>
+			<target ref="id10"/>
+			<label kind="synchronisation" x="-2193" y="-1768">connected[id]?</label>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-2626" y="-2006">(Lv[id] &gt; TVb[bTVid]+Lsafemargin+(l[id]/2))</label>
+		</transition>
+		<transition>
+			<source ref="id12"/>
+			<target ref="id12"/>
+			<label kind="guard" x="-1955" y="-1862">c1&gt;=freq</label>
+			<label kind="synchronisation" x="-1955" y="-1845">connect[IXL]!</label>
+			<label kind="assignment" x="-1955" y="-1828">c1=0,x=id</label>
+			<nail x="-1963" y="-1879"/>
+			<nail x="-1963" y="-1802"/>
+			<nail x="-2022" y="-1802"/>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-2439" y="-1955">(TVa[bTVid]-Lsafemargin-(l[id]/2) &gt; Lv[id])</label>
+			<label kind="comments" x="-2601" y="-1870">no TV read</label>
+			<nail x="-2439" y="-1887"/>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id12"/>
+			<label kind="guard" x="-2354" y="-2125">(TVa[bTVid]-Lsafemargin-(l[id]/2) &lt;= Lv[id] &amp;&amp;
+Lv[id] &lt;= TVb[bTVid]+Lsafemargin+(l[id]/2))</label>
+			<label kind="synchronisation" x="-2345" y="-2057">connect[IXL]!</label>
+			<label kind="assignment" x="-2345" y="-2040">c1=freq,c2=0,x=id</label>
+			<label kind="comments" x="-2218" y="-2159">TV read, connect to IXL</label>
+			<nail x="-2090" y="-2057"/>
+		</transition>
+		<transition>
+			<source ref="id13"/>
+			<target ref="id11"/>
+			<label kind="synchronisation" x="-2643" y="-2082">read?</label>
+			<label kind="assignment" x="-2642" y="-2057">bTVid=x,
+IXL=y</label>
+			<nail x="-2660" y="-2057"/>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id15"/>
+			<label kind="synchronisation" x="-1810" y="-1998">ack[id]?</label>
+			<label kind="assignment" x="-1810" y="-1980">c1:=0</label>
+			<nail x="-1819" y="-1887"/>
+			<nail x="-1819" y="-1955"/>
+			<nail x="-1742" y="-1955"/>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id14"/>
+			<label kind="guard" x="-1674" y="-1895">c1&gt;=TmaxAck</label>
+			<label kind="synchronisation" x="-1666" y="-1878">failureOBC[id]!</label>
+			<label kind="comments" x="-1674" y="-1946">stop tram if no ack is received by IXL</label>
+		</transition>
+	</template>
+	<template>
+		<name>OBC_TV</name>
+		<parameter>const id_tv id, int a,int b,  int IXL</parameter>
+		<declaration>clock c1=0.0;</declaration>
+		<location id="id16" x="-1912" y="-1606">
+			<urgent/>
+		</location>
+		<location id="id17" x="-1759" y="-1606">
+			<name x="-1768" y="-1657">On</name>
+			<label kind="invariant" x="-1785" y="-1640">c1&lt;=freq</label>
+		</location>
+		<init ref="id16"/>
+		<transition>
+			<source ref="id17"/>
+			<target ref="id17"/>
+			<label kind="guard" x="-1674" y="-1606">c1&gt;=freq</label>
+			<label kind="synchronisation" x="-1674" y="-1589">read!</label>
+			<label kind="assignment" x="-1674" y="-1572">c1 = 0,
+x = id,
+y = IXL</label>
+			<label kind="comments" x="-1589" y="-1632">every freq sec. check if some 
+TV has been read</label>
+			<nail x="-1691" y="-1606"/>
+			<nail x="-1691" y="-1538"/>
+			<nail x="-1759" y="-1538"/>
+		</transition>
+		<transition>
+			<source ref="id16"/>
+			<target ref="id17"/>
+			<label kind="assignment" x="-1878" y="-1674">TVa[id]:=a,
+TVb[id]:=b</label>
+		</transition>
+	</template>
+	<template>
+		<name x="5" y="5">IXL_TCV</name>
+		<parameter>const id_tcv id,  const id_IXL idixl, flag f, int  a,  int  b</parameter>
+		<declaration>
+//it is assumed that all TCV are horizontal, as in the operative scenarios, and that more than one tram can occupy a TCV
+//it is assumed that a TCV is managed by only one IXL
+
+
+int last_entered_tram=-1;
+
+int tid=-1;
+
+double pos:=-1.0;</declaration>
+		<location id="id18" x="-817" y="-450">
+			<name x="-841" y="-442">checkU2</name>
+			<urgent/>
+		</location>
+		<location id="id19" x="-893" y="-748">
+			<name x="-903" y="-782">checkU1</name>
+			<urgent/>
+		</location>
+		<location id="id20" x="-1267" y="-578">
+			<urgent/>
+		</location>
+		<location id="id21" x="-544" y="-569">
+			<name x="-569" y="-611">Occupied</name>
+		</location>
+		<location id="id22" x="-1114" y="-578">
+			<name x="-1124" y="-612">Free</name>
+		</location>
+		<init ref="id20"/>
+		<transition>
+			<source ref="id21"/>
+			<target ref="id18"/>
+			<label kind="synchronisation" x="-681" y="-518">checkloc[idixl]?</label>
+			<label kind="assignment" x="-680" y="-501">tid=x,
+pos=z</label>
+		</transition>
+		<transition>
+			<source ref="id18"/>
+			<target ref="id21"/>
+			<label kind="guard" x="-681" y="-442">!(last_entered_tram==tid)&amp;&amp;
+!(a-Lsafemargin-(l[tid]/2) &lt;= pos &amp;&amp;
+pos &lt;= b+Lsafemargin+(l[tid]/2))</label>
+			<nail x="-545" y="-450"/>
+		</transition>
+		<transition>
+			<source ref="id18"/>
+			<target ref="id21"/>
+			<label kind="guard" x="-1011" y="-544">(a-Lsafemargin-(l[tid]/2) &lt;= pos &amp;&amp;
+pos &lt;= b+Lsafemargin+(l[tid]/2))</label>
+			<label kind="assignment" x="-960" y="-501">last_entered_tram:=tid</label>
+			<nail x="-817" y="-569"/>
+		</transition>
+		<transition>
+			<source ref="id18"/>
+			<target ref="id22"/>
+			<label kind="guard" x="-1139" y="-450">(last_entered_tram==tid)&amp;&amp;
+!(a-Lsafemargin-(l[tid]/2) &lt;= pos &amp;&amp;
+pos &lt;= b+Lsafemargin+(l[tid]/2))</label>
+			<label kind="synchronisation" x="-1139" y="-391">freed[idixl]!</label>
+			<label kind="assignment" x="-1139" y="-374">x=id,
+y=tid</label>
+			<nail x="-1114" y="-450"/>
+		</transition>
+		<transition>
+			<source ref="id19"/>
+			<target ref="id22"/>
+			<label kind="guard" x="-936" y="-663">!(a-Lsafemargin-(l[tid]/2) &lt;= pos &amp;&amp;
+pos &lt;= b+Lsafemargin+(l[tid]/2))</label>
+			<nail x="-893" y="-578"/>
+		</transition>
+		<transition>
+			<source ref="id19"/>
+			<target ref="id21"/>
+			<label kind="guard" x="-808" y="-824">(a-Lsafemargin-(l[tid]/2) &lt;= pos &amp;&amp;
+pos &lt;= b+Lsafemargin+(l[tid]/2))</label>
+			<label kind="synchronisation" x="-816" y="-773">occupied[idixl]!</label>
+			<label kind="assignment" x="-816" y="-748">last_entered_tram:=tid,
+x=id,
+y=tid</label>
+			<nail x="-544" y="-748"/>
+		</transition>
+		<transition>
+			<source ref="id22"/>
+			<target ref="id19"/>
+			<label kind="synchronisation" x="-1097" y="-773">checkloc[idixl]?</label>
+			<label kind="assignment" x="-1096" y="-748">tid=x,
+pos=z</label>
+			<nail x="-1114" y="-748"/>
+		</transition>
+		<transition>
+			<source ref="id20"/>
+			<target ref="id22"/>
+			<label kind="assignment" x="-1249" y="-578">TCVflag[id]:=f,
+TCVa[id]:=a,
+TCVb[id]:=b</label>
+		</transition>
+	</template>
+	<template>
+		<name>IXL_Connect</name>
+		<parameter>const id_IXL id</parameter>
+		<declaration>int tid=-1;</declaration>
+		<location id="id23" x="-2133" y="-1674">
+			<urgent/>
+		</location>
+		<location id="id24" x="-1513" y="-1674">
+			<urgent/>
+		</location>
+		<location id="id25" x="-1309" y="-1674">
+			<name x="-1334" y="-1708">Connecting</name>
+			<label kind="exponentialrate" x="-1317" y="-1666">2</label>
+		</location>
+		<location id="id26" x="-1760" y="-1674">
+			<urgent/>
+		</location>
+		<location id="id27" x="-1955" y="-1674">
+			<name x="-1980" y="-1708">Waiting</name>
+			<label kind="invariant" x="-2023" y="-1734">connectedCounter[id]&lt;=nTram</label>
+		</location>
+		<branchpoint id="id28" x="-1623" y="-1674">
+		</branchpoint>
+		<init ref="id23"/>
+		<transition>
+			<source ref="id23"/>
+			<target ref="id27"/>
+			<label kind="assignment" x="-2125" y="-1666">connectedCounter[id]=0</label>
+		</transition>
+		<transition>
+			<source ref="id24"/>
+			<target ref="id25"/>
+			<label kind="synchronisation" x="-1495" y="-1691">IXLCheckConnection!</label>
+		</transition>
+		<transition>
+			<source ref="id28"/>
+			<target ref="id24"/>
+			<label kind="probability" x="-1606" y="-1674">99999</label>
+		</transition>
+		<transition>
+			<source ref="id27"/>
+			<target ref="id26"/>
+			<label kind="synchronisation" x="-1895" y="-1691">connect[id]?</label>
+			<label kind="assignment" x="-1895" y="-1674">tid=x</label>
+			<label kind="comments" x="-2091" y="-1776">receive request of connection from OBC</label>
+		</transition>
+		<transition>
+			<source ref="id25"/>
+			<target ref="id27"/>
+			<label kind="synchronisation" x="-1750" y="-1580">connected[tid]!</label>
+			<label kind="assignment" x="-1750" y="-1555">IXLconnected[tid]=id,
+connectedCounter[id]++</label>
+			<label kind="comments" x="-1768" y="-1504">acknowledge connection
+IXLconnected is the identifier of IXL</label>
+			<nail x="-1309" y="-1555"/>
+			<nail x="-1955" y="-1555"/>
+		</transition>
+		<transition>
+			<source ref="id28"/>
+			<target ref="id27"/>
+			<label kind="probability" x="-1903" y="-1614">1</label>
+			<nail x="-1649" y="-1614"/>
+			<nail x="-1921" y="-1614"/>
+		</transition>
+		<transition>
+			<source ref="id26"/>
+			<target ref="id28"/>
+		</transition>
+	</template>
+	<template>
+		<name>IXL_ReceivePos</name>
+		<parameter>const id_IXL id</parameter>
+		<declaration>int tid:=-1;
+double pos=-1.0;</declaration>
+		<location id="id29" x="-2898" y="-2813">
+			<urgent/>
+		</location>
+		<location id="id30" x="-2414" y="-2813">
+			<name x="-2474" y="-2847">ReceivedLoc</name>
+			<label kind="exponentialrate" x="-2431" y="-2805">3</label>
+		</location>
+		<location id="id31" x="-2635" y="-2813">
+			<urgent/>
+		</location>
+		<location id="id32" x="-3103" y="-2813">
+			<name x="-3137" y="-2855">WaitingLoc</name>
+		</location>
+		<branchpoint id="id33" x="-2737" y="-2813">
+		</branchpoint>
+		<init ref="id32"/>
+		<transition>
+			<source ref="id29"/>
+			<target ref="id33"/>
+		</transition>
+		<transition>
+			<source ref="id32"/>
+			<target ref="id29"/>
+			<label kind="synchronisation" x="-3026" y="-2839">loc[id]?</label>
+			<label kind="assignment" x="-3043" y="-2813">tid=x, pos=z</label>
+			<label kind="comments" x="-3051" y="-2992">receive location from connected OBC</label>
+		</transition>
+		<transition>
+			<source ref="id30"/>
+			<target ref="id32"/>
+			<label kind="synchronisation" x="-2847" y="-2703">ack[id]!</label>
+			<label kind="comments" x="-2907" y="-2677">send acknowledgement to OBC</label>
+			<nail x="-2414" y="-2702"/>
+			<nail x="-3103" y="-2702"/>
+		</transition>
+		<transition>
+			<source ref="id31"/>
+			<target ref="id30"/>
+			<label kind="synchronisation" x="-2601" y="-2838">checkloc[id]!</label>
+			<label kind="assignment" x="-2601" y="-2805">x=tid,
+z=pos</label>
+			<label kind="comments" x="-2626" y="-2873">trigger the check of TCV and others of IXL</label>
+		</transition>
+		<transition>
+			<source ref="id33"/>
+			<target ref="id31"/>
+			<label kind="probability" x="-2720" y="-2838">99999</label>
+		</transition>
+		<transition>
+			<source ref="id33"/>
+			<target ref="id32"/>
+			<label kind="probability" x="-2797" y="-2770">1</label>
+			<nail x="-2831" y="-2753"/>
+			<nail x="-3035" y="-2753"/>
+		</transition>
+	</template>
+	<template>
+		<name>IXL_Tmaxsafe_Supervision</name>
+		<parameter>const id_IXL id</parameter>
+		<declaration>clock c1:=0.0;
+int TmaxSafe = freq*5; //seconds
+
+
+bool check[nTram];
+int tid=-1;
+
+
+void resetCheck()
+{
+    int i=0;
+    for(i=0;i&lt;nTram;i++)
+        check[i]=false;
+}
+
+int sumCheck()
+{
+    int i=0;
+    int s=0;
+    for(i=0;i&lt;nTram;i++)
+    {
+       if (check[i])
+           s++;
+    }
+    return s;
+}</declaration>
+		<location id="id34" x="-1521" y="-1785">
+			<name x="-1531" y="-1819">urg1</name>
+			<urgent/>
+		</location>
+		<location id="id35" x="-1938" y="-1615">
+			<name x="-1946" y="-1598">urg2</name>
+			<urgent/>
+		</location>
+		<location id="id36" x="-1938" y="-1921">
+			<name x="-1948" y="-1955">start</name>
+			<urgent/>
+		</location>
+		<location id="id37" x="-2286" y="-1785">
+			<name x="-2312" y="-1827">FailSafe</name>
+		</location>
+		<location id="id38" x="-1939" y="-1785">
+			<name x="-1964" y="-1827">NormalMode</name>
+			<label kind="invariant" x="-2048" y="-1844">(c1&lt;=TmaxSafe)||(connectedCounter[id]==0)</label>
+		</location>
+		<init ref="id36"/>
+		<transition>
+			<source ref="id34"/>
+			<target ref="id38"/>
+			<label kind="assignment" x="-1734" y="-1751">c1=0,resetCheck()</label>
+			<nail x="-1700" y="-1759"/>
+			<nail x="-1836" y="-1759"/>
+		</transition>
+		<transition>
+			<source ref="id38"/>
+			<target ref="id34"/>
+			<label kind="synchronisation" x="-1802" y="-1802">IXLCheckConnection?</label>
+			<label kind="comments" x="-1683" y="-1853">A new tram is connected, restart to check positions reception</label>
+		</transition>
+		<transition>
+			<source ref="id35"/>
+			<target ref="id38"/>
+			<label kind="guard" x="-2524" y="-1649">(!check[tid]&amp;&amp;(sumCheck()==(connectedCounter[id]-1)))||(connectedCounter[id]==0)</label>
+			<label kind="assignment" x="-2116" y="-1632">c1=0,resetCheck()</label>
+			<nail x="-1997" y="-1649"/>
+			<nail x="-1996" y="-1751"/>
+		</transition>
+		<transition>
+			<source ref="id35"/>
+			<target ref="id38"/>
+			<label kind="guard" x="-1887" y="-1657">!check[tid]&amp;&amp;(sumCheck()&lt;(connectedCounter[id]-1))</label>
+			<label kind="assignment" x="-1887" y="-1640">check[tid]=true</label>
+			<nail x="-1878" y="-1657"/>
+			<nail x="-1879" y="-1742"/>
+		</transition>
+		<transition>
+			<source ref="id38"/>
+			<target ref="id35"/>
+			<label kind="synchronisation" x="-1981" y="-1734">checkloc[id]?</label>
+			<label kind="assignment" x="-1981" y="-1717">tid=x</label>
+		</transition>
+		<transition>
+			<source ref="id36"/>
+			<target ref="id38"/>
+			<label kind="assignment" x="-1938" y="-1887">resetCheck(),c1=0</label>
+		</transition>
+		<transition>
+			<source ref="id37"/>
+			<target ref="id38"/>
+			<label kind="synchronisation" x="-2235" y="-1768">restoreIXL[id]?</label>
+			<label kind="assignment" x="-2235" y="-1751">c1=0, resetCheck()</label>
+			<nail x="-2235" y="-1768"/>
+			<nail x="-1997" y="-1768"/>
+		</transition>
+		<transition>
+			<source ref="id38"/>
+			<target ref="id37"/>
+			<label kind="guard" x="-2252" y="-1819">c1&gt;=TmaxSafe&amp;&amp;connectedCounter[id]&gt;0</label>
+			<label kind="synchronisation" x="-2244" y="-1802">failureIXL[id]!</label>
+			<label kind="comments" x="-2405" y="-1878">IXL has not received a position of a connected tram 
+within timeout sec.</label>
+		</transition>
+	</template>
+	<template>
+		<name>IXL_Lsafemargin_Supervision</name>
+		<parameter>const id_IXL id</parameter>
+		<declaration>int tid = -1;
+int pos = -1;
+</declaration>
+		<location id="id39" x="-799" y="-272">
+			<name x="-824" y="-323">FailSafe</name>
+		</location>
+		<location id="id40" x="-1037" y="-272">
+			<name x="-1047" y="-306">check</name>
+			<urgent/>
+		</location>
+		<location id="id41" x="-1215" y="-272">
+			<name x="-1300" y="-306">NormalOperation</name>
+		</location>
+		<init ref="id41"/>
+		<transition>
+			<source ref="id39"/>
+			<target ref="id41"/>
+			<label kind="synchronisation" x="-1003" y="-144">restoreIXL[id]?</label>
+			<nail x="-799" y="-127"/>
+			<nail x="-1215" y="-127"/>
+		</transition>
+		<transition>
+			<source ref="id40"/>
+			<target ref="id39"/>
+			<label kind="guard" x="-1002" y="-301">epsilon[tid]&gt;Lsafemargin</label>
+			<label kind="synchronisation" x="-994" y="-272">failureIXL[id]!</label>
+		</transition>
+		<transition>
+			<source ref="id40"/>
+			<target ref="id41"/>
+			<label kind="guard" x="-1190" y="-204">epsilon[tid]&lt;=Lsafemargin</label>
+			<nail x="-1037" y="-212"/>
+			<nail x="-1198" y="-212"/>
+		</transition>
+		<transition>
+			<source ref="id41"/>
+			<target ref="id40"/>
+			<label kind="synchronisation" x="-1181" y="-323">checkloc[id]?</label>
+			<label kind="assignment" x="-1173" y="-306">tid=x</label>
+		</transition>
+	</template>
+	<template>
+		<name>IXL_Mitigation</name>
+		<parameter>const id_IXL id</parameter>
+		<location id="id42" x="-195" y="-110">
+			<name x="-238" y="-144">DegradadedMode</name>
+			<label kind="exponentialrate" x="-204" y="-102">3</label>
+		</location>
+		<location id="id43" x="-408" y="-110">
+			<name x="-476" y="-153">NormalOperation</name>
+		</location>
+		<init ref="id43"/>
+		<transition>
+			<source ref="id42"/>
+			<target ref="id43"/>
+			<label kind="synchronisation" x="-340" y="-51">restoreIXL[id]!</label>
+			<nail x="-195" y="-25"/>
+			<nail x="-408" y="-25"/>
+		</transition>
+		<transition>
+			<source ref="id43"/>
+			<target ref="id42"/>
+			<label kind="synchronisation" x="-340" y="-136">failureIXL[id]?</label>
+		</transition>
+	</template>
+	<template>
+		<name>IXL_Disconnect</name>
+		<parameter>const id_IXL id, const id_tcv idtcv, const bool releaseOccupied</parameter>
+		<declaration>
+int TCVid=-1;
+int tid=-1;</declaration>
+		<location id="id44" x="-1445" y="-1164">
+			<urgent/>
+		</location>
+		<location id="id45" x="-1232" y="-1164">
+			<name x="-1224" y="-1198">Disconnecting</name>
+			<label kind="exponentialrate" x="-1241" y="-1156">2</label>
+		</location>
+		<location id="id46" x="-1232" y="-1317">
+			<name x="-1242" y="-1351">checkU</name>
+			<urgent/>
+		</location>
+		<location id="id47" x="-1615" y="-1317">
+			<name x="-1683" y="-1334">Waiting</name>
+			<label kind="invariant" x="-1802" y="-1351">connectedCounter[id]&gt;=0</label>
+		</location>
+		<init ref="id47"/>
+		<transition>
+			<source ref="id44"/>
+			<target ref="id47"/>
+			<label kind="synchronisation" x="-1597" y="-1181">disconnect[tid]!</label>
+			<label kind="assignment" x="-1615" y="-1164">connectedCounter[id]--</label>
+			<nail x="-1615" y="-1164"/>
+		</transition>
+		<transition>
+			<source ref="id45"/>
+			<target ref="id44"/>
+			<label kind="synchronisation" x="-1394" y="-1156">IXLCheckConnection!</label>
+			<nail x="-1351" y="-1164"/>
+		</transition>
+		<transition>
+			<source ref="id46"/>
+			<target ref="id45"/>
+			<label kind="guard" x="-1224" y="-1258">TCVid==idtcv</label>
+		</transition>
+		<transition>
+			<source ref="id46"/>
+			<target ref="id47"/>
+			<label kind="guard" x="-1615" y="-1445">TCVid != idtcv</label>
+			<nail x="-1232" y="-1419"/>
+			<nail x="-1615" y="-1419"/>
+		</transition>
+		<transition>
+			<source ref="id47"/>
+			<target ref="id46"/>
+			<label kind="guard" x="-1581" y="-1292">releaseOccupied==false</label>
+			<label kind="synchronisation" x="-1581" y="-1275">freed[id]?</label>
+			<label kind="assignment" x="-1581" y="-1258">TCVid=x,
+tid=y</label>
+			<nail x="-1590" y="-1292"/>
+			<nail x="-1258" y="-1292"/>
+		</transition>
+		<transition>
+			<source ref="id47"/>
+			<target ref="id46"/>
+			<label kind="guard" x="-1394" y="-1394">releaseOccupied==true</label>
+			<label kind="synchronisation" x="-1394" y="-1377">occupied[id]?</label>
+			<label kind="assignment" x="-1394" y="-1360">TCVid=x,
+tid=y</label>
+		</transition>
+	</template>
+	<system>
+//IXL 0
+IXLC_0 = IXL_Connect(0);
+IXLR_0 = IXL_ReceivePos(0);
+IXLS_0 = IXL_Tmaxsafe_Supervision(0);
+IXLS2_0 = IXL_Lsafemargin_Supervision(0);
+IXLD_0 = IXL_Disconnect(0,1,false);  //const id_IXL id, const id_tcv idtcv, const bool releaseOccupied
+IXLM_0 = IXL_Mitigation(0);
+
+//TCV
+TCV_0 = IXL_TCV(0,0,none,200,250);   //const id_tcv id, const id_IXL idixl, flag f, int  a,  int  b
+TCV_1 = IXL_TCV(1,0,none,350,450);
+TCV_2 = IXL_TCV(2,1,none,500,550);   //under another IXL, for verification purposes
+
+//OBC 0
+
+//OBCC_0 = OBC_CommOCC(0); 
+OBCE_0 = OBC_Epsilon(0);
+OBCR_0 = OBC_SendPosIXL(0);
+OBCD_0 = OBC_Drive(0);
+OBCS_0 = OBC_IXLConnectionSupervision(0);
+OBCM_0 = OBC_Mitigation(0);
+
+//OBC 1
+
+//OBCC_1 = OBC_CommOCC(1); 
+
+OBCE_1 = OBC_Epsilon(1);
+OBCR_1 = OBC_SendPosIXL(1);
+OBCD_1 = OBC_Drive(1);
+OBCS_1 = OBC_IXLConnectionSupervision(1);
+OBCM_1 = OBC_Mitigation(1);
+
+//TV
+TV_0 = OBC_TV(0,100,150,0);   //const id_tv id, int a,int b, int IXL
+
+
+system 
+      
+
+       //Tram 0
+       OBCE_0,
+      OBCR_0,
+       OBCD_0,
+       OBCS_0,
+       OBCM_0,
+
+       //Tram 1
+     /*  OBCC_1,
+       OBCE_1,
+       OBCR_1,
+       OBCD_1,
+       OBCS_1,
+       OBCM_1,
+       */
+
+        //TV_0
+        TV_0,
+
+       //IXL 0
+       IXLC_0, 
+       IXLR_0, 
+       IXLS_0, 
+       IXLS2_0,
+       IXLD_0,
+       IXLM_0,
+       
+       //TCV of IXL 0
+       TCV_0,
+       TCV_1,
+       TCV_2;  </system>
+	<queries>
+		<query>
+			<formula>Pr(&lt;&gt;[0,150](IXLD_0.Disconnecting &amp;&amp; (Lv[0]+l[0]/2&lt;TCVa[1])))
+			</formula>
+			<comment>
+
+			</comment>
+		</query>
+		<query>
+			<formula>Pr(&lt;&gt;[0,150] (Lv[0]+l[0]/2&lt;TCVa[1]) &amp;&amp; (Lv[0]-l[0]/2+epsilon[0]&gt;TCVb[1]))
+			</formula>
+			<comment>
+			</comment>
+		</query>
+	</queries>
+</nta>

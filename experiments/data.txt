@@ -1,0 +1,71 @@
+exp2
+
+(119830 runs) Pr(MITL ) in [0,0.005]
+with confidence 0.995.
+
+Pr(<>[0,150](IXLD_0.Disconnecting && (Lv[0]+l[0]/2<TCVa[1]))) with release occupied false
+Established direct connection to local server.
+(Academic) UPPAAL version 4.1.19 (rev. 5649), September 2014 -- server.
+Verification/kernel/elapsed time used: 782.938s / 0.078s / 783.69s.
+Resident/virtual memory usage peaks: 75,736KB / 165,432KB.
+
+non ci sono plot
+
+alpha, beta, epsilon  0.005
+
+
+===============================
+
+exp3
+(119830 runs) Pr(MITL ) in [0.995,1]
+with confidence 0.995.
+
+Pr(<>[0,150](IXLD_0.Disconnecting && (Lv[0]+l[0]/2<TCVa[1])))  with release occupied true
+
+Verification/kernel/elapsed time used: 144.328s / 0.109s / 144.519s.
+Resident/virtual memory usage peaks: 142,188KB / 300,160KB.
+Property is satisfied.
+
+epsilon [200,250]
+
+============
+
+exp3
+
+epsilon [0,50]
+
+(119830 runs) Pr(MITL ) in [0.158198,0.168198]
+with confidence 0.995.
+
+Pr(<>[0,150](IXLD_0.Disconnecting && (Lv[0]+l[0]/2<TCVa[1])))
+Verification/kernel/elapsed time used: 563.391s / 0.11s / 563.782s.
+Resident/virtual memory usage peaks: 176,944KB / 468,928KB.
+Property is satisfied.
+
+=============
+
+exp4
+
+epsilon [0,250]
+(119830 runs) Pr(MITL ) in [0.0221134,0.0321134]
+with confidence 0.995
+
+Pr(<>[0,150](IXLD_0.Disconnecting && (Lv[0]+l[0]/2<TCVa[1])))
+Verification/kernel/elapsed time used: 1,364.172s / 0.062s / 1,366.364s.
+Resident/virtual memory usage peaks: 242,432KB / 601,588KB.
+Property is satisfied.
+
+
+
+=====
+
+exp5 [0.250]
+
+(119830 runs) Pr(MITL ) in [0,0.005]
+with confidence 0.995.
+
+(Academic) UPPAAL version 4.1.19 (rev. 5649), September 2014 -- server.
+Verification/kernel/elapsed time used: 1,604.281s / 0.047s / 1,605.323s.
+Resident/virtual memory usage peaks: 74,316KB / 164,548KB.
+
+non ci sono plot
